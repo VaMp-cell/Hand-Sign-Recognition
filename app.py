@@ -43,11 +43,11 @@ def get_args():
     parser.add_argument("--min_detection_confidence",
                         help='min_detection_confidence',
                         type=float,
-                        default=0.7)
+                        default=0.3)
     parser.add_argument("--min_tracking_confidence",
                         help='min_tracking_confidence',
-                        type=int,
-                        default=0.5)
+                        type=float,
+                        default=0.3)
 
     args = parser.parse_args()
 
@@ -228,6 +228,22 @@ def main():
                             end_dist = (valid_frames[-1][0] - valid_frames[-1][16])**2 + (valid_frames[-1][1] - valid_frames[-1][17])**2
                             if end_dist > start_dist * 0.7:  # Fingers must close by at least 30%
                                 finger_gesture_id = 0
+                    elif finger_gesture_id == 3:  # Water
+                        # Water requires W-shape (6) and a tapping/bouncing motion
+                        if hand_sign_id != 6:  # Must be W-shape
+                            finger_gesture_id = 0
+                        else:
+                            # Tapping motion: wrist Y must oscillate (go up then down or vice versa)
+                            # Check for at least one direction change in the Y axis of the index tip
+                            tip_y_values = [f[17] for f in valid_frames]  # index finger tip Y
+                            direction_changes = 0
+                            for i in range(2, len(tip_y_values)):
+                                prev_delta = tip_y_values[i-1] - tip_y_values[i-2]
+                                curr_delta = tip_y_values[i] - tip_y_values[i-1]
+                                if prev_delta * curr_delta < 0 and abs(prev_delta) > 3 and abs(curr_delta) > 3:
+                                    direction_changes += 1
+                            if direction_changes < 1:  # Need at least 1 direction reversal (tap)
+                                finger_gesture_id = 0
 
                 # Calculates the gesture IDs in the latest detection
                 finger_gesture_history.append(finger_gesture_id)
@@ -239,6 +255,12 @@ def main():
                 if most_common_fg_id[0][0] == 0:
                     dynamic_text = ""
 
+                # Determine the static gesture label
+                if hand_sign_id == -1:
+                    hand_sign_text = ""
+                else:
+                    hand_sign_text = keypoint_classifier_labels[hand_sign_id]
+
                 # Drawing part
                 debug_image = draw_bounding_rect(use_brect, debug_image, brect)
                 debug_image = draw_landmarks(debug_image, landmark_list)
@@ -246,7 +268,7 @@ def main():
                     debug_image,
                     brect,
                     handedness,
-                    keypoint_classifier_labels[hand_sign_id],
+                    hand_sign_text,
                     dynamic_text,
                 )
         else:

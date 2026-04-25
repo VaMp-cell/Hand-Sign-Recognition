@@ -32,13 +32,22 @@ except Exception as e:
 
 X_train, X_test, y_train, y_test = train_test_split(X_dataset, y_dataset, train_size=0.75, random_state=RANDOM_SEED)
 
-# Model building
+# Compute class weights to handle data imbalance
+from sklearn.utils.class_weight import compute_class_weight
+classes = np.unique(y_train)
+class_weights = compute_class_weight('balanced', classes=classes, y=y_train)
+class_weight_dict = dict(zip(classes, class_weights))
+print(f"Class weights: {class_weight_dict}")
+
+# Model building — bigger network for 8 classes
 model = tf.keras.models.Sequential([
     tf.keras.layers.Input((21 * 2, )),
     tf.keras.layers.Dropout(0.2),
-    tf.keras.layers.Dense(20, activation='relu'),
+    tf.keras.layers.Dense(64, activation='relu'),
     tf.keras.layers.Dropout(0.4),
-    tf.keras.layers.Dense(10, activation='relu'),
+    tf.keras.layers.Dense(32, activation='relu'),
+    tf.keras.layers.Dropout(0.3),
+    tf.keras.layers.Dense(16, activation='relu'),
     tf.keras.layers.Dense(NUM_CLASSES, activation='softmax')
 ])
 
@@ -51,13 +60,14 @@ es_callback = tf.keras.callbacks.EarlyStopping(patience=20, verbose=1)
 # Compilation
 model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
-# Training
+# Training with class weights to prevent bias
 model.fit(
     X_train, y_train, 
     epochs=1000, 
-    batch_size=128, 
+    batch_size=64, 
     validation_data=(X_test, y_test), 
-    callbacks=[cp_callback, es_callback]
+    callbacks=[cp_callback, es_callback],
+    class_weight=class_weight_dict
 )
 
 # Evaluation

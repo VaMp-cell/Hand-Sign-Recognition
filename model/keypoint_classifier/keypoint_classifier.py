@@ -8,6 +8,7 @@ class KeyPointClassifier(object):
     def __init__(
         self,
         model_path='model/keypoint_classifier/keypoint_classifier.tflite',
+        score_th=0.75,
         num_threads=1,
     ):
         self.interpreter = tf.lite.Interpreter(model_path=model_path,
@@ -16,6 +17,7 @@ class KeyPointClassifier(object):
         self.interpreter.allocate_tensors()
         self.input_details = self.interpreter.get_input_details()
         self.output_details = self.interpreter.get_output_details()
+        self.score_th = score_th
 
     def __call__(
         self,
@@ -32,5 +34,8 @@ class KeyPointClassifier(object):
         result = self.interpreter.get_tensor(output_details_tensor_index)
 
         result_index = np.argmax(np.squeeze(result))
+
+        if np.squeeze(result)[result_index] < self.score_th:
+            result_index = -1  # Unknown / not confident enough
 
         return result_index
